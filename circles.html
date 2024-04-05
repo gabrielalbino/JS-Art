@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+      html, body{
+        margin: 0;
+        padding: 0;
+        background-color: black;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="canvas"></canvas>
+    <!-- <script src="./main.js"></script> -->
+    <script>
+      const width = window.innerWidth;
+      let fpsController = 0;
+      const height = window.innerHeight;
+      const rects = [];
+      let rotation = 0;
+      function getDistance(x, y) {
+        let center = {
+          x: width / 2,
+          y: height / 2
+        }
+        let distance = Math.sqrt(Math.pow(x - center.x, 2) + Math.pow(y - center.y, 2));
+        return distance;
+      }
+      function getWidth(x, y) {
+        //get based on the distance from the center
+        let distanceFromCenter = getDistance(x, y);
+        //normalize between 0 and 1
+        let normalizedDistance = distanceFromCenter / Math.sqrt(Math.pow(width / 2, 2) + Math.pow(height / 2, 2));
+        let distance = normalizedDistance * 50;
+        return distance;
+      }
+
+      function getVelocity (speed, x, y) {
+        let center = {
+          x: width / 2,
+          y: height / 2
+        }
+        let distance = getDistance(x, y);
+        let velocity = {
+          x: (center.x - x) / distance * speed,
+          y: (center.y - y) / distance * speed
+        }
+        return velocity;
+      }
+
+      function getColor(x, y) {
+        let distanceFromCenter = getDistance(x, y);
+        let normalizedDistance = distanceFromCenter / Math.sqrt(Math.pow(width / 2, 2) + Math.pow(height / 2, 2));
+        let distance = normalizedDistance * 360;
+        return {
+          hue : distance,
+          saturation: 100,
+          lightness: 50
+        }
+      }
+      class Rect {
+        constructor (x, y) {
+          let color = getColor(x, y);
+          this.speed = 7;
+          this.x = x;
+          this.y = y;
+          this.width = getWidth(x, y); 
+          this.height = this.width;
+          this.velocity = getVelocity(this.speed, x, y);
+          this.history = [];
+          this.hue = color.hue;
+          this.originalVelocity = {
+            x: this.velocity.x,
+            y: this.velocity.y
+          }
+          this.angle = 0;
+        }
+
+        draw (ctx) {
+          // ctx.beginPath();
+          // ctx.rect(this.x, this.y, this.width, this.height);
+          // ctx.strokeStyle = `hsl(${this.hue}, 50%, 50%)`;
+          // ctx.stroke();
+          // ctx.closePath();
+          
+          // do the same above but rotating
+          ctx.save();
+          ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+          ctx.rotate(this.angle);
+          ctx.translate(-(this.x + this.width / 2), -(this.y + this.height / 2));
+          ctx.beginPath();
+          ctx.rect(this.x, this.y, this.width, this.height);
+          ctx.strokeStyle = `hsl(${this.hue}, 50%, 50%)`;
+          ctx.stroke();
+          ctx.closePath();
+          ctx.restore();
+
+          this.history.forEach((point, index) => {
+            // ctx.beginPath();
+            // ctx.rect(point.x, point.y, point.width, point.height);
+            // ctx.strokeStyle = `hsl(${point.hue}, 50%, 50%)`;
+            // ctx.stroke();
+            // ctx.closePath();
+
+            // do the same above but rotating
+
+            ctx.save();
+            ctx.translate(point.x + point.width / 2, point.y + point.height / 2);
+            ctx.rotate(point.angle);
+            ctx.translate(-(point.x + point.width / 2), -(point.y + point.height / 2));
+            ctx.beginPath();
+            ctx.rect(point.x, point.y, point.width, point.height);
+            ctx.strokeStyle = `hsla(${point.hue}, 50%, 50%, ${index / this.history.length})`;
+            ctx.stroke();
+            ctx.closePath();
+            ctx.restore();
+
+          });
+        }
+
+        reverseToOriginalVelocity () {
+          this.velocity = {
+            x: this.originalVelocity.x,
+            y: this.originalVelocity.y
+          }
+        }
+
+        update () {
+          this.history.push({
+            x: this.x,
+            y: this.y,
+            width: this.width,
+            height: this.height,
+            hue: this.hue,
+            angle: this.angle
+          });
+          if(this.history.length > 100) {
+            this.history.shift();
+          }
+          this.x += this.velocity.x;
+          this.y += this.velocity.y;
+          this.hue = getColor(this.x, this.y).hue;
+          this.width = getWidth(this.x, this.y);
+          this.height = this.width;
+          this.angle += 0.01;
+          // if (this.x + this.width > width || this.x < 0 || this.y + this.height > height || this.y < 0) {
+          //   this.velocity = {
+          //     x: -this.velocity.x,
+          //     y: -this.velocity.y
+          //   }
+          // }
+          let distanceFromCenter = getDistance(this.x, this.y);
+          if (distanceFromCenter < 100) {
+            this.reverseToOriginalVelocity();
+          }
+          else {
+            // this.velocity = getVelocity(this.speed, this.x, this.y);
+          }
+        }
+      }
+
+      function draw (ctx) {
+        fpsController++;
+        ctx.clearRect(0, 0, width, height);
+        rects.forEach(rect => {
+          rect.update();
+          rect.draw(ctx);
+        });
+        if (fpsController % 20 == 0) {
+          // rects.push(new Rect(Math.random() * width, Math.random() * height));
+          //random offscreen position
+          let randomPosition = Math.random() * 4;
+          let x, y;
+          if (randomPosition < 1) {
+            x = Math.random() * width;
+            y = -100;
+          }
+          else if (randomPosition < 2) {
+            x = Math.random() * width;
+            y = height + 100;
+          }
+          else if (randomPosition < 3) {
+            x = -100;
+            y = Math.random() * height;
+          }
+          else {
+            x = width + 100;
+            y = Math.random() * height;
+          }
+          rects.push(new Rect(x, y));
+        }
+        
+        window.requestAnimationFrame(() => draw(ctx));
+      }
+
+      window.addEventListener("DOMContentLoaded", function () {
+        let canvas = document.getElementById("canvas");
+        canvas.width = `${window.innerWidth}`;
+        canvas.height = `${window.innerHeight}`;
+        let ctx = canvas.getContext("2d");
+        // ctx.translate(canvas.width / 2, canvas.height / 2);
+
+        for (let i = 20; i < 80; i++) {
+          // let percent = i / 100;
+          // let x1 = percent * width;
+          // let y1 = percent * height;
+          // let x2 = width - percent * width;
+          // let y2 = percent * height;
+          // rects.push(new Rect(Math.random() * width, Math.random() * height));
+        }
+
+        window.requestAnimationFrame(() => draw(ctx));
+      });
+
+    </script>
+  </body>
+</html>
